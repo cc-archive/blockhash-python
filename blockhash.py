@@ -10,6 +10,14 @@ import math
 import argparse
 import PIL.Image as Image
 
+DEFAULT_OPTIONS = {
+    'quick': False,
+    'bits': 16,
+    'size': None,
+    'interpolation': 1,
+    'debug': False,
+}
+
 def median(data):
     data = sorted(data)
     length = len(data)
@@ -46,10 +54,8 @@ def translate_blocks_to_bits(blocks, pixels_per_block):
             # 0 if the median is in the lower value space, 1 otherwise
             blocks[j] = int(v > m or (abs(v - m) < 1 and m > half_block_value))
 
-
 def bits_to_hexhash(bits):
     return '{0:0={width}x}'.format(int(''.join([str(x) for x in bits]), 2), width = len(bits) // 4)
-
 
 def blockhash_even(im, bits):
     if im.mode == 'RGBA':
@@ -152,9 +158,51 @@ def blockhash(im, bits):
     translate_blocks_to_bits(result, block_width * block_height)
     return bits_to_hexhash(result)
 
+def preprocess_image(im, size=None):
+    """Perform any necessary transformations to the image, including converting
+    indexed/grayscale images to RGB and (optionally) resizing to e.g. 256x256"""
+    if im.mode == '1' or im.mode == 'L' or im.mode == 'P':
+        im = im.convert('RGB')
+    elif im.mode == 'LA':
+        im = im.convert('RGBA')
+    if size:
+        size = args.size.split('x')
+        size = (int(size[0]), int(size[1]))
+        im = im.resize(size, interpolation)
+
+    return im
+
+def process_images(filenames, options=DEFAULT_OPTIONS):
+    """Process all images passed in as the `filenames` array. Returns a dictionary
+    where key=filename and value=hash"""
+    if options['interpolation'] == 1:
+        interpolation = Image.NEAREST
+    elif options['interpolation'] == 2:
+        interpolation = Image.BILINEAR
+    elif options['interpolation'] == 3:
+        interpolation = Image.BICUBIC
+    elif options['interpolation'] == 4:
+        interpolation = Image.ANTIALIAS
+    else:
+        raise Exception("Unknown interpolation option")
+
+    method = blockhash_even if options['quick'] else blockhash
+
+    result = {}
+
+    for fn in filenames:
+        im = Image.open(fn)
+        im = preprocess_image(im, options['size'])
+        image_hash = process_image(im, options['bits'], method)
+        result[fn] = image_hash
+    return result
+
+def process_image(im, num_bits, method):
+    image_hash = method(im, num_bits)
+    return image_hash
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
     parser.add_argument('--quick', type=bool, default=False,
         help='Use quick hashing method. Default: False')
     parser.add_argument('--bits', type=int, default=16,
@@ -166,44 +214,5 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true',
         help='Print hashes as 2D maps (for debugging)')
     parser.add_argument('filenames', nargs='+')
-
-    args = parser.parse_args()
-
-    if args.interpolation == 1:
-        interpolation = Image.NEAREST
-    elif args.interpolation == 2:
-        interpolation = Image.BILINEAR
-    elif args.interpolation == 3:
-        interpolation = Image.BICUBIC
-    elif args.interpolation == 4:
-        interpolation = Image.ANTIALIAS
-
-    if args.quick:
-        method = blockhash_even
-    else:
-        method = blockhash
-
-    for fn in args.filenames:
-        im = Image.open(fn)
-
-        # convert indexed/grayscale images to RGB
-        if im.mode == '1' or im.mode == 'L' or im.mode == 'P':
-            im = im.convert('RGB')
-        elif im.mode == 'LA':
-            im = im.convert('RGBA')
-
-        if args.size:
-            size = args.size.split('x')
-            size = (int(size[0]), int(size[1]))
-            im = im.resize(size, interpolation)
-
-        hash = method(im, args.bits)
-
-        print('{hash}  {fn}'.format(fn=fn, hash=hash))
-
-        if args.debug:
-            bin_hash = '{:0{width}b}'.format(int(hash, 16), width=args.bits ** 2)
-            map = [bin_hash[i:i+args.bits] for i in range(0, len(bin_hash), args.bits)]
-            print("")
-            print("\n".join(map))
-            print("")
+    args = vars(parser.parse_args())
+    print(process_images(args['filenames'], options=args))
