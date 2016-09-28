@@ -4,7 +4,7 @@ from distutils.core import setup
 
 setup(
     name='blockhash',
-    version='0.1',
+    version='0.1.1',
     description='Perceptual image hash calculation tool',
     author='Commons Machinery',
     author_email='dev@commonsmachinery.se',
