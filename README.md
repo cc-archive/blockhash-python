@@ -13,6 +13,8 @@ Run `blockhash.py [list of images]` for calculating hashes.
 
 Run `blockhash.py --help` for the list of options.
 
+Also runnable as a library by calling `blockhash.process_images([list of image filenames], **options)`.
+
 License
 -------
 

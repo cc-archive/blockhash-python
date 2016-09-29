@@ -158,15 +158,14 @@ def blockhash(im, bits):
     translate_blocks_to_bits(result, block_width * block_height)
     return bits_to_hexhash(result)
 
-def preprocess_image(im, size=None):
+def preprocess_image(im, size=None, interpolation=None):
     """Perform any necessary transformations to the image, including converting
     indexed/grayscale images to RGB and (optionally) resizing to e.g. 256x256"""
     if im.mode == '1' or im.mode == 'L' or im.mode == 'P':
         im = im.convert('RGB')
     elif im.mode == 'LA':
         im = im.convert('RGBA')
-    if size:
-        size = args.size.split('x')
+    if size and interpolation:
         size = (int(size[0]), int(size[1]))
         im = im.resize(size, interpolation)
 
@@ -192,7 +191,7 @@ def process_images(filenames, options=DEFAULT_OPTIONS):
 
     for fn in filenames:
         im = Image.open(fn)
-        im = preprocess_image(im, options['size'])
+        im = preprocess_image(im, options['size'], interpolation)
         image_hash = process_image(im, options['bits'], method)
         result[fn] = image_hash
     return result
